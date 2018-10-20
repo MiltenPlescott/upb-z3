@@ -2,6 +2,6 @@
 UPB Zadanie3
 
 # Building
-go get .
-go build .
-go run .
+go get .  
+go build .  
+go run .  
