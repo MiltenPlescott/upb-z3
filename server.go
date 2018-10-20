@@ -21,6 +21,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
         t, _ := template.ParseFiles("web/upload.html")
         t.Execute(w, token)
     } else {
+        // maximum size of file is 1 << 21 (2GB)
         r.ParseMultipartForm(1 << 21)
         file, handler, err := r.FormFile("uploadfile")
 
@@ -46,23 +47,29 @@ func upload(w http.ResponseWriter, r *http.Request) {
         action := r.FormValue("action")
     
         if action == "enc" {
+            // TODO - add ".enc" extension to encrypted file
             err = EncryptFile([]byte(password), in_path, out_path)
             if err != nil {
                 fmt.Println(err)
                 return
             }
 
+            // TODO - download encrypted file as <filename>.enc
+            w.Header().Add("Content-Disposition", "Attachment; filename=\"" + handler.Filename + "\"")
             http.ServeFile(w, r, out_path)
 
             os.Remove(in_path)
             os.Remove(out_path)
         } else if action == "dec" {
+            // TODO - only accept files with ".enc" extension
             err = DecryptFile([]byte(password), in_path, out_path)
             if err != nil {
                 fmt.Println(err)
                 return
             }
 
+            // TODO - download decrypted file as <filename> (without .enc)
+            w.Header().Add("Content-Disposition", "Attachment; filename=\"" + handler.Filename + "\"")
             http.ServeFile(w, r, out_path)
 
             os.Remove(in_path)
