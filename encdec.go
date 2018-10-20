@@ -8,10 +8,10 @@ import (
     "golang.org/x/crypto/scrypt"
     "fmt"
     //"io"
-    "os"
+    //"os"
     "io/ioutil" // reading/writing files
-    "time" // timing encryption/decryption
-    "flag" // command line flags
+    // "time" // timing encryption/decryption
+    // "flag" // command line flags
 )
 
 // Sizes are in bytes
@@ -178,29 +178,8 @@ func DecryptFile(password []byte, in_path string, out_path string) error {
     return ioutil.WriteFile(out_path, plain_data, 0644)
 }
 
+/*
 func main() {
-    /*
-    Example 1: text encryption/decryption with a pre-defined password
-
-
-    ciphertext, err := Seal([]byte("qwerty"), []byte("Hello encrypted world"))
-    if err != nil {
-        panic(err.Error())
-    }
-
-    fmt.Printf("ciphertext: %x\n", ciphertext)
-
-    plaintext, err := Open([]byte("qwerty"), ciphertext)
-    if err != nil {
-        panic(err.Error())
-    }
-
-    fmt.Printf("plaintext: %s\n", plaintext)
-    */
-
-    /*
-    Example 2: file encryption/decryption with a pre-defined password
-    */
     flag.Usage = func() {
         fmt.Fprintf(os.Stderr, "Usage: %s [-d|-e] <in_file> <out_file>\n", os.Args[0])
     }
@@ -233,3 +212,4 @@ func main() {
     elapsed := time.Since(start)
     fmt.Printf("Took %s\n", elapsed)
 }
+*/
