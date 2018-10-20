@@ -13,7 +13,7 @@ Format of an encrypted file is as follows: `<salt><nonce><data>`
 
 # Sources
 
-https://leanpub.com/gocrypto/read
-https://golang.org/src/crypto/cipher/example_test.go
-https://proandroiddev.com/security-best-practices-symmetric-encryption-with-aes-in-java-7616beaaade9
-https://blog.filippo.io/the-scrypt-parameters/
+- https://leanpub.com/gocrypto/read
+- https://golang.org/src/crypto/cipher/example_test.go
+- https://proandroiddev.com/security-best-practices-symmetric-encryption-with-aes-in-java-7616beaaade9
+- https://blog.filippo.io/the-scrypt-parameters/
