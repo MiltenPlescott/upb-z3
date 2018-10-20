@@ -21,12 +21,8 @@ const kAesKeySize = 16
 const kAesNonceSize = 12
 
 // https://blog.filippo.io/the-scrypt-parameters/
-// According to the article, these are the ideal parameters (for file encryption):
-//      N = 2<<20
-//      r = 8
-//      p = 1
 const kScryptSaltSize = 32
-const kScryptParamN = 20 // 2 << X
+const kScryptParamN = 10 // 2 << X
 const kScryptParamR = 8
 const kScryptParamP = 1
 
