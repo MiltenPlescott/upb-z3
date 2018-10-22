@@ -9,6 +9,7 @@ import (
     "crypto/md5"
     "time"
     "strconv"
+    "strings"
 )
 
 func upload(w http.ResponseWriter, r *http.Request) {
@@ -54,26 +55,27 @@ func upload(w http.ResponseWriter, r *http.Request) {
                 return
             }
 
-            // TODO - download encrypted file as <filename>.enc
-            w.Header().Add("Content-Disposition", "Attachment; filename=\"" + handler.Filename + "\"")
+            // TODONE - download encrypted file as <filename>.enc
+            w.Header().Add("Content-Disposition", "Attachment; filename=\"" + handler.Filename + ".enc\"")
             http.ServeFile(w, r, out_path)
 
             os.Remove(in_path)
             os.Remove(out_path)
         } else if action == "dec" {
-            // TODO - only accept files with ".enc" extension
-            err = DecryptFile([]byte(password), in_path, out_path)
-            if err != nil {
-                fmt.Println(err)
-                return
+            // TODONE - only accept files with ".enc" extension
+            if strings.HasSuffix(handler.Filename, ".enc") {
+                err = DecryptFile([]byte(password), in_path, out_path)
+                if err != nil {
+                    fmt.Println(err)
+                    return
+                }
+                // TODONE - download decrypted file as <filename> (without .enc)
+                w.Header().Add("Content-Disposition", "Attachment; filename=\"" + strings.TrimSuffix(handler.Filename, ".enc") + "\"")
+                http.ServeFile(w, r, out_path)
+
+                os.Remove(in_path)
+                os.Remove(out_path)
             }
-
-            // TODO - download decrypted file as <filename> (without .enc)
-            w.Header().Add("Content-Disposition", "Attachment; filename=\"" + handler.Filename + "\"")
-            http.ServeFile(w, r, out_path)
-
-            os.Remove(in_path)
-            os.Remove(out_path)
         }
     }
 }
