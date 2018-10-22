@@ -49,11 +49,15 @@ func upload(w http.ResponseWriter, r *http.Request) {
     
         if action == "enc" {
             // TODO - add ".enc" extension to encrypted file
+            startTime := time.Now()
             err = EncryptFile([]byte(password), in_path, out_path)
+            elapsedTime := time.Since(startTime)
             if err != nil {
                 fmt.Println(err)
                 return
             }
+            
+            fmt.Println("Encryption took %i ms", elapsedTime)
 
             // TODONE - download encrypted file as <filename>.enc
             w.Header().Add("Content-Disposition", "Attachment; filename=\"" + handler.Filename + ".enc\"")
@@ -61,14 +65,17 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
             os.Remove(in_path)
             os.Remove(out_path)
-        } else if action == "dec" {
+        }else if action == "dec" {
             // TODONE - only accept files with ".enc" extension
             if strings.HasSuffix(handler.Filename, ".enc") {
+                startTime := time.Now()
                 err = DecryptFile([]byte(password), in_path, out_path)
+                elapsedTime := time.Since(startTime)
                 if err != nil {
                     fmt.Println(err)
                     return
                 }
+                fmt.Println("Decryption took %i ms", elapsedTime)
                 // TODONE - download decrypted file as <filename> (without .enc)
                 w.Header().Add("Content-Disposition", "Attachment; filename=\"" + strings.TrimSuffix(handler.Filename, ".enc") + "\"")
                 http.ServeFile(w, r, out_path)
