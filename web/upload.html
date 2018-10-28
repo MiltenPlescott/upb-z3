@@ -4,9 +4,9 @@
 </head>
 <body>
     <form enctype="multipart/form-data" action="/upload" method="post">
-        <input type="file" name="uploadfile"/>
+        Data file <input type="file" name="uploadfile"/><br>
+        Private/Public key <input type="file" name="uploadkey"/>
         <input type="hidden" name="token" value="{{.}}"/><br>
-        Password <input type="value" name="password"/><br>
         Encrypt <input type="radio" name="action" value="enc" checked/><br>
         Decrypt <input type="radio" name="action" value="dec"/><br>
         <input type="submit" value="Upload"/>

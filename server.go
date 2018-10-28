@@ -1,15 +1,16 @@
 package main
 
 import (
+    "bytes"
+    "crypto/md5"
     "fmt"
-    "net/http"
     "html/template"
     "io"
+    "net/http"
     "os"
-    "crypto/md5"
-    "time"
     "strconv"
     "strings"
+    "time"
 )
 
 func upload(w http.ResponseWriter, r *http.Request) {
@@ -44,20 +45,29 @@ func upload(w http.ResponseWriter, r *http.Request) {
         f.Close()
         file.Close()
 
-        password := r.FormValue("password")
+        file, _, err = r.FormFile("uploadkey")
+
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+
+        var key bytes.Buffer
+        io.Copy(&key, file)
+
         action := r.FormValue("action")
-    
+
         if action == "enc" {
             // TODO - add ".enc" extension to encrypted file
             startTime := time.Now()
-            err = EncryptFile([]byte(password), in_path, out_path)
+            err = EncryptFile(key.Bytes(), in_path, out_path)
             elapsedTime := time.Since(startTime)
             if err != nil {
                 fmt.Println(err)
                 return
             }
             
-            fmt.Println("Encryption took %i ms", elapsedTime)
+            fmt.Println("Encryption took", elapsedTime)
 
             // TODONE - download encrypted file as <filename>.enc
             w.Header().Add("Content-Disposition", "Attachment; filename=\"" + handler.Filename + ".enc\"")
@@ -65,17 +75,17 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
             os.Remove(in_path)
             os.Remove(out_path)
-        }else if action == "dec" {
+        } else if action == "dec" {
             // TODONE - only accept files with ".enc" extension
             if strings.HasSuffix(handler.Filename, ".enc") {
                 startTime := time.Now()
-                err = DecryptFile([]byte(password), in_path, out_path)
+                err = DecryptFile(key.Bytes(), in_path, out_path)
                 elapsedTime := time.Since(startTime)
                 if err != nil {
                     fmt.Println(err)
                     return
                 }
-                fmt.Println("Decryption took %i ms", elapsedTime)
+                fmt.Println("Decryption took", elapsedTime)
                 // TODONE - download decrypted file as <filename> (without .enc)
                 w.Header().Add("Content-Disposition", "Attachment; filename=\"" + strings.TrimSuffix(handler.Filename, ".enc") + "\"")
                 http.ServeFile(w, r, out_path)
