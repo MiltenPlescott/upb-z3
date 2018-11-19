@@ -1,0 +1,22 @@
+<html>
+    <body>
+        <h1>Register</h1>
+        Username can contain alphanumeric characters. Allowed username length is 5 to 20 characters
+        <br>
+        Usernames containing "admin" or "root" are not allowed
+        <br>
+        Password needs to contain at least one lowercase, one uppercase, one numeric and one special character and must be 10 chars or longer
+        <form method="post" action="/register">
+            <label for="name">User name</label>
+            <input type="text" id="name" name="name">
+        <br><br>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password">
+        <br><br>
+            <label for="passwordconf">Confirm password</label>
+            <input type="password" id="passwordconf" name="passwordconf">
+        <br>
+            <button type="submit">Register</button>
+        </form>
+    </body>
+</html>

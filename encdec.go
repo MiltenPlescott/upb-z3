@@ -1,17 +1,22 @@
 package main
 
 import (
-    "errors"
+    "bytes"
     "crypto/aes"
     "crypto/cipher"
     "crypto/rand"
-    "golang.org/x/crypto/scrypt"
+    "crypto/rsa"
+    "crypto/sha256"
+    "crypto/x509"
+    "encoding/pem"
+    "errors"
+    //"flag" // command line flags
     "fmt"
-    //"io"
-    //"os"
     "io/ioutil" // reading/writing files
-    // "time" // timing encryption/decryption
-    // "flag" // command line flags
+    //"os" //
+    "strings"
+    //"time" // timing encryption/decryption
+    "unicode"
 )
 
 // Sizes are in bytes
@@ -20,16 +25,14 @@ const kAesKeySize = 16
 // Recommended by NIST https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 const kAesNonceSize = 12
 
-// https://blog.filippo.io/the-scrypt-parameters/
-const kScryptSaltSize = 32
-const kScryptParamN = 10 // 2 << X
-const kScryptParamR = 8
-const kScryptParamP = 1
-
+// random oracle used in RSA-OAEP
+var rndOracle = sha256.New()
 
 var (
     ErrorEncrypt = errors.New("Encryption failed")
     ErrorDecrypt = errors.New("Decryption failed")
+    ErrorPemType = errors.New("Unexpected PEM type")
+    ErrorDecode = errors.New("RSA key decoding failed")
 )
 
 
@@ -45,19 +48,64 @@ func generateRandomBytes(size int) ([]byte, error) {
     return r, err
 }
 
-func deriveKey(password, salt []byte) *[kAesKeySize]byte {
-    var finalKey = new([kAesKeySize]byte)
-    
-    // func Key(password, salt []byte, N, r, p, keyLen int) ([]byte, error)
-    key, err := scrypt.Key(password, salt, 2 << kScryptParamN, kScryptParamR, kScryptParamP, kAesKeySize)
+func decodeKey(key []byte, pemType1 string) ([]byte, error) {
+    block, rest := pem.Decode(key)
+
+    if block != nil { // might be PEM
+        if block.Type == pemType1 { // correct PEM
+            return block.Bytes, nil
+        } else { // incorrect PEM
+            return nil, ErrorPemType
+        }
+    } else { // might be DER
+        return rest, nil
+    }
+}
+
+func decodePrivateKey(key []byte) (*rsa.PrivateKey, error) {
+    decodedKey, err := decodeKey(key, "RSA PRIVATE KEY")
+
     if err != nil {
         fmt.Println(err.Error())
-        return nil
+        return nil, ErrorPemType
     }
 
-    copy(finalKey[:], key)
-    bzero(key)
-    return finalKey
+    priv, err := x509.ParsePKCS1PrivateKey(decodedKey)
+
+    if err != nil {
+        if strings.HasSuffix(err.Error(), "trailing data") {
+            priv, err = x509.ParsePKCS1PrivateKey(bytes.TrimRightFunc(decodedKey, unicode.IsSpace))
+            if err != nil {
+                return nil, ErrorDecode
+            }
+        } else {
+            return nil, ErrorDecode
+        }
+    }
+    return priv, nil
+}
+
+func decodePublicKey(key []byte) (*rsa.PublicKey, error) {
+    decodedKey, err := decodeKey(key, "RSA PUBLIC KEY")
+
+    if err != nil {
+        fmt.Println(err.Error())
+        return nil, ErrorPemType
+    }
+
+    pub, err := x509.ParsePKCS1PublicKey(decodedKey)
+
+    if err != nil {
+        if strings.HasSuffix(err.Error(), "trailing data") {
+            pub, err = x509.ParsePKCS1PublicKey(bytes.TrimRightFunc(decodedKey, unicode.IsSpace))
+            if err != nil {
+                return nil, ErrorDecode
+            }
+        } else {
+            return nil, ErrorDecode
+        }
+    }
+    return pub, nil
 }
 
 func encrypt(key *[kAesKeySize]byte, plain_data []byte) ([]byte, error) {
@@ -112,15 +160,20 @@ func decrypt(key *[kAesKeySize]byte, encrypted_data []byte) ([]byte, error) {
     return data, nil
 }
 
-func Seal(password, plain_data []byte) ([]byte, error) {
-    salt, err := generateRandomBytes(kScryptSaltSize)
+func Seal(pub *rsa.PublicKey, plain_data []byte) ([]byte, error) {
+    var key [kAesKeySize]byte
+    tmpkey, err := generateRandomBytes(kAesKeySize)
     if err != nil {
         fmt.Println(err.Error())
         return nil, ErrorEncrypt
     }
+    copy(key[:], tmpkey)
+    bzero(tmpkey)
 
-    key := deriveKey(password, salt)
-    encrypted_data, err := encrypt(key, plain_data)
+    encrypted_data, err := encrypt(&key, plain_data)
+
+    // RSA key has to be at least 656 bits long, given 128 bit AES and 256 bit SHA
+    encrypted_key, err := rsa.EncryptOAEP(rndOracle, rand.Reader, pub, key[:], nil)
     bzero(key[:])
 
     if err != nil {
@@ -128,18 +181,32 @@ func Seal(password, plain_data []byte) ([]byte, error) {
         return nil, ErrorEncrypt
     }
 
-    // Prepend encrypted data with salt used to derive the key
-    encrypted_data = append(salt, encrypted_data...)
+    if err != nil {
+        fmt.Println(err.Error())
+        return nil, ErrorEncrypt
+    }
+
+    // Prepend encrypted data with RSA-encrypted AES key
+    encrypted_data = append(encrypted_key, encrypted_data...)
     return encrypted_data, nil
 }
 
-func Open(password, encrypted_data []byte) ([]byte, error) {
-    // Extract salt from the start of the file
-    salt := make([]byte, kScryptSaltSize)
-    copy(salt, encrypted_data[:kScryptSaltSize])
+func Open(priv *rsa.PrivateKey, encrypted_data []byte) ([]byte, error) {
+    var key [kAesKeySize]byte
+    // Extract RSA-encrypted AES key from the start of the file
+    encrypted_key := make([]byte, priv.PublicKey.Size())
+    copy(encrypted_key, encrypted_data[:priv.PublicKey.Size()])
 
-    key := deriveKey(password, salt)
-    plain_data, err := decrypt(key, encrypted_data[kScryptSaltSize:])
+    tmpkey, err := rsa.DecryptOAEP(rndOracle, rand.Reader, priv, encrypted_key, nil)
+    if err != nil {
+        fmt.Println(err.Error())
+        return nil, ErrorDecrypt
+    }
+
+    copy(key[:], tmpkey)
+    bzero(tmpkey)
+
+    plain_data, err := decrypt(&key, encrypted_data[priv.PublicKey.Size():])
     bzero(key[:])
 
     if err != nil {
@@ -150,13 +217,18 @@ func Open(password, encrypted_data []byte) ([]byte, error) {
     return plain_data, nil
 }
 
-func EncryptFile(password []byte, in_path string, out_path string) error {
+func EncryptFile(key []byte, in_path string, out_path string) error {
     data, err := ioutil.ReadFile(in_path)
     if err != nil {
         return err
     }
 
-    encrypted_data, err := Seal(password, data)
+    pub, err := decodePublicKey(key)
+    if err != nil {
+        return ErrorDecode
+    }
+
+    encrypted_data, err := Seal(pub, data)
     if err != nil {
         return err
     }
@@ -164,13 +236,22 @@ func EncryptFile(password []byte, in_path string, out_path string) error {
     return ioutil.WriteFile(out_path, encrypted_data, 0644)
 }
 
-func DecryptFile(password []byte, in_path string, out_path string) error {
+func DecryptFile(key []byte, in_path string, out_path string) error {
     encrypted_data, err := ioutil.ReadFile(in_path)
     if err != nil {
         return err
     }
 
-    plain_data, err := Open(password, encrypted_data)
+    priv, err := decodePrivateKey(key)
+    if err != nil {
+        return ErrorDecode
+    }
+    err = priv.Validate()
+    if err != nil {
+        return err
+    }
+
+    plain_data, err := Open(priv, encrypted_data)
     if err != nil {
         return err
     }
@@ -181,29 +262,32 @@ func DecryptFile(password []byte, in_path string, out_path string) error {
 /*
 func main() {
     flag.Usage = func() {
-        fmt.Fprintf(os.Stderr, "Usage: %s [-d|-e] <in_file> <out_file>\n", os.Args[0])
+        fmt.Fprintf(os.Stderr, "Usage: %s [-d|-e] <in_file> <out_file> <key_file>\n", os.Args[0])
     }
 
-    decryptFlag := flag.Bool("d", false, "decrypt <in_file> into <out_file>")
-    encryptFlag := flag.Bool("e", false, "encrypt <in_file> into <out_file>")
+    decryptFlag := flag.Bool("d", false, "decrypt <in_file> into <out_file> using <key_file>")
+    encryptFlag := flag.Bool("e", false, "encrypt <in_file> into <out_file> using <key_file>")
     flag.Parse()
 
-    if flag.NArg() < 2 {
+    if flag.NArg() < 3 {
         flag.Usage()
         return
     }
 
-    password := []byte("pleasedontstealourfiles")
-
     start := time.Now()
 
+    key, err := ioutil.ReadFile(flag.Arg(2))
+    if err != nil {
+        panic(err.Error())
+    }
+
     if *decryptFlag && !*encryptFlag {
-        err := DecryptFile(password, flag.Arg(0), flag.Arg(1))
+        err := DecryptFile(key, flag.Arg(0), flag.Arg(1))
         if err != nil {
             panic(err.Error())
         }
     } else if *encryptFlag && !*decryptFlag {
-        err := EncryptFile(password, flag.Arg(0), flag.Arg(1))
+        err := EncryptFile(key, flag.Arg(0), flag.Arg(1))
         if err != nil {
             panic(err.Error())
         }
