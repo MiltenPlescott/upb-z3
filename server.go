@@ -57,7 +57,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
     auth, ok := session.Values["authenticated"].(bool)
     if !ok || !auth {
-        http.Error(w, "Forbidden", http.StatusForbidden)
+        http.Error(w, fmt.Sprintf("%d %s", http.StatusForbidden, http.StatusText(http.StatusForbidden)), http.StatusForbidden)
         return
     }
 
@@ -177,6 +177,7 @@ func loginHandler(response http.ResponseWriter, request *http.Request) {
 
     if userCap != session.Values["captchaStr"] {
         session.Values["captchaCorrect"] = false
+        session.Save(request, response)
         http.Redirect(response, request, redirectTarget, 302)
     } else {
         session.Values["captchaCorrect"] = true
@@ -300,15 +301,11 @@ func registerHandler(response http.ResponseWriter, request *http.Request) {
 
     var pswdOk bool
     if len(pass) >= 10 &&
-        isAlphaNum(name) &&
-        (len(name) >= 5 && len(name) <= 20) &&
         pass == passConf &&
         strings.ContainsAny(pass, "0123456789") &&
         strings.ContainsAny(pass, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") &&
         strings.ContainsAny(pass, "abcdefghijklmnopqrstuvwxyz") &&
-        strings.ContainsAny(pass, "!@#$%^&*()/-+.,") &&
-        !strings.Contains(name, "admin") &&
-        !strings.Contains(name, "root") {
+        strings.ContainsAny(pass, "!@#$%^&*()/-+.,") {
             pswdOk = true
             session.Values["pswdCorrect"] = true
     } else {
@@ -423,6 +420,7 @@ const indexPage =
 </br></br>
     <label for="captcha">Enter the text you see in the image above</label>
     <input type="text" id="captcha", name="captcha">
+    <font color="red">{{.capErr}}</font>
 </br></br>
     <button type="submit">Login</button>
 </form>
@@ -443,7 +441,7 @@ Password needs to contain at least one lowercase, one uppercase, one numeric and
 <form method="post" action="/register">
     <label for="name">User name</label>
     <input type="text" id="name" name="name">
-    {{.nameErr}}
+    <font color="red">{{.nameErr}}</font>
  </br></br>
     <label for="password">Password</label>
     <input type="password" id="password" name="password">
@@ -456,7 +454,7 @@ Password needs to contain at least one lowercase, one uppercase, one numeric and
 </br></br>
     <label for="captcha">Enter the text you see in the image above</label>
     <input type="text" id="captcha", name="captcha">
-    {{.capErr}}
+    <font color="red">{{.capErr}}</font>
 </br></br>
     <button type="submit">Register</button>
 </form>`
@@ -503,16 +501,16 @@ func registerPageHandler(response http.ResponseWriter, request *http.Request) {
     }
 
     if session.Values["nameCorrect"] == false {
-        varmap["nameErr"] = `<font color="red">Username does not satisfy requirements</font>`
+        varmap["nameErr"] = `Username does not satisfy requirements`
     }
     if session.Values["nameExists"] == true {
-        varmap["nameErr"] = `<font color="red">Username already exists!</font>`
+        varmap["nameErr"] = `Username already exists!`
     }
     if session.Values["pswdCorrect"] == false {
         varmap["pswdErr"] = `Wrong password`
     }
     if session.Values["captchaCorrect"] == false {
-        varmap["capErr"] = `<font color="red">CAPTCHA error! Try again</font>`
+        varmap["capErr"] = `CAPTCHA error! Try again`
     }
 
     session.Save(request, response)
@@ -544,7 +542,7 @@ func indexPageHandler(response http.ResponseWriter, request *http.Request) {
     }
 
     if session.Values["captchaCorrect"] == false {
-        varmap["capErr"] = `<font color="red">CAPTCHA error! Try again</font>`
+        varmap["capErr"] = `CAPTCHA error! Try again`
     }
     if session.Values["pswdCorrect"] == false {
         varmap["pswdErr"] = `Wrong password`
@@ -559,7 +557,7 @@ func keysPageHandler(response http.ResponseWriter, request *http.Request) {
     session, _ := store.Get(request, "session")
     auth, ok := session.Values["authenticated"].(bool)
     if !ok || !auth {
-        http.Error(response, "Forbidden", http.StatusForbidden)
+        http.Error(response, fmt.Sprintf("%d %s", http.StatusForbidden, http.StatusText(http.StatusForbidden)), http.StatusForbidden)
         return
     }
 	fmt.Fprintf(response, keysPage)
@@ -569,7 +567,7 @@ func backHandler(response http.ResponseWriter, request *http.Request) {
     session, _ := store.Get(request, "session")
     auth, ok := session.Values["authenticated"].(bool)
     if !ok || !auth {
-        http.Error(response, "Forbidden", http.StatusForbidden)
+        http.Error(response, fmt.Sprintf("%d %s", http.StatusForbidden, http.StatusText(http.StatusForbidden)), http.StatusForbidden)
         return
     }
     http.Redirect(response, request, "/internal", 302)
@@ -579,7 +577,7 @@ func keysUploadHandler(response http.ResponseWriter, request *http.Request) {
     session, _ := store.Get(request, "session")
     auth, ok := session.Values["authenticated"].(bool)
     if !ok || !auth {
-        http.Error(response, "Forbidden", http.StatusForbidden)
+        http.Error(response, fmt.Sprintf("%d %s", http.StatusForbidden, http.StatusText(http.StatusForbidden)), http.StatusForbidden)
         return
     }
     name := session.Values["username"].(string)
